@@ -15,8 +15,8 @@ ACID, mas grade e snap permanecem no limite nativo limpo de `1/1024`.
 - Limite de zoom-in em 45 ticks ACID (`1.1.000` até `1.1.045`).
 - Largura temporal de cada passo copiada dos limites medidos: `80 s`, `58 s`,
   `44 s`, `30 s`, `22 s`, seguindo a tabela até `29,296875 ms`.
-- Margem nativa de um pixel após o último marco, para que o limite direito
-  também seja desenhado pelo REAPER.
+- Compensação da barra vertical interna de 18 px e da borda direita exclusiva,
+  para que o último marco medido fique realmente visível no arrange.
 - Divisão nativa correspondente ao ACID nos níveis `0` a `20`.
 - Grade e snap nativos fixados em `1/1024` nos níveis `21` a `23`.
 - Clique, cursor, itens, loop points, time selection e arrastos inteiramente
@@ -66,7 +66,7 @@ quando o pacote for atualizado.
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.3)`.
+   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.4)`.
 3. Adicione essa ação ao toolbar.
 4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
@@ -84,7 +84,7 @@ O serviço também restaura o espaçamento mínimo de grid e a preferência
 
 Se ainda existir uma ação antiga com `(toolbar)` no nome ou cujo caminho
 aponte para `Downloads\Acid grid`, remova esse botão antigo. Somente a ação com
-`ReaPack v1.3.3` no nome recebe as atualizações automáticas deste repositório.
+`ReaPack v1.3.4` no nome recebe as atualizações automáticas deste repositório.
 
 ## Ação antiga de Mousewheel
 
