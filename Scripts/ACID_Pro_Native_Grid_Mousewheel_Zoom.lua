@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - 24-step mousewheel zoom
--- @version 1.1.3
+-- @version 1.1.4
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -14,6 +14,7 @@ local RESYNC_TOLERANCE = 0.12
 local NATIVE_GRID_LIMIT = 1 / 1024
 local ARRANGE_SCROLLBAR_PX = 18
 local ACID_RIGHT_PADDING_PX = 27
+local ACID_REFERENCE_SPAN_PX = 1392
 
 -- span_ticks is the complete arrange-view width in ACID ruler ticks.
 -- grid_division is in whole notes, the unit used by GetSetProjectGrid.
@@ -75,16 +76,49 @@ local function get_view()
     reaper.TimeMap2_timeToQN(0, end_time)
 end
 
+local trackview = reaper.JS_Window_FindChildByID(
+  reaper.GetMainHwnd(), 1000
+)
+
+local function arrange_widths()
+  if not trackview or not reaper.JS_Window_IsWindow(trackview) then
+    return nil
+  end
+  local ok, width = reaper.JS_Window_GetClientSize(trackview)
+  width = tonumber(width) or 0
+  if not ok or width <= ARRANGE_SCROLLBAR_PX + 1 then return nil end
+  return width, width - ARRANGE_SCROLLBAR_PX - 1
+end
+
+local function level_view_span(level)
+  local width, drawable_width = arrange_widths()
+  if not width then return spans[level] end
+  if level == 0 then
+    local endpoint_width = drawable_width - ACID_RIGHT_PADDING_PX
+    if endpoint_width > 0 then
+      return spans[level] * width / endpoint_width
+    end
+  else
+    return spans[level] * drawable_width / ACID_REFERENCE_SPAN_PX
+  end
+  return spans[level]
+end
+
 local function infer_level(visible_qn)
-  if visible_qn >= spans[0] * (1 - RESYNC_TOLERANCE) then return 0 end
-  if visible_qn <= spans[MAX_LEVEL] * (1 + RESYNC_TOLERANCE) then
+  if visible_qn >= level_view_span(0) * (1 - RESYNC_TOLERANCE) then
+    return 0
+  end
+  if visible_qn <= level_view_span(MAX_LEVEL) *
+      (1 + RESYNC_TOLERANCE) then
     return MAX_LEVEL
   end
 
   local closest_level = 0
   local closest_distance = math.huge
   for level = 0, MAX_LEVEL do
-    local distance = math.abs(math.log(visible_qn / spans[level]))
+    local distance = math.abs(math.log(
+      visible_qn / level_view_span(level)
+    ))
     if distance < closest_distance then
       closest_level = level
       closest_distance = distance
@@ -100,47 +134,39 @@ local function read_level(visible_qn)
   if not stored then return infer_level(visible_qn) end
 
   stored = math.max(0, math.min(MAX_LEVEL, math.floor(stored + 0.5)))
-  local error_ratio = math.abs(visible_qn - spans[stored]) / spans[stored]
+  local expected_span = level_view_span(stored)
+  local error_ratio = math.abs(visible_qn - expected_span) / expected_span
   if error_ratio > RESYNC_TOLERANCE then
     return infer_level(visible_qn)
   end
   return stored
 end
 
-local function mouse_anchor_ratio(trackview)
-  if not trackview or not reaper.JS_Window_IsWindow(trackview) then
-    return 0.5
-  end
-  local ok, width = reaper.JS_Window_GetClientSize(trackview)
-  width = tonumber(width) or 0
-  if not ok or width <= 0 then return 0.5 end
+local function mouse_anchor_qn(start_qn, end_qn)
+  local _, drawable_width = arrange_widths()
+  if not drawable_width then return (start_qn + end_qn) * 0.5 end
   local screen_x, screen_y = reaper.GetMousePosition()
   local client_x = reaper.JS_Window_ScreenToClient(
     trackview, screen_x, screen_y
   )
   client_x = tonumber(client_x)
-  if not client_x then return 0.5 end
-  return math.max(0, math.min(1, client_x / width))
+  if not client_x then return (start_qn + end_qn) * 0.5 end
+  local ratio = math.max(0, math.min(1, client_x / drawable_width))
+  return start_qn + (end_qn - start_qn) * ratio
 end
 
-local function set_exact_span(start_qn, end_qn, span_qn)
-  local view_span_qn = span_qn
-  local trackview = reaper.JS_Window_FindChildByID(
-    reaper.GetMainHwnd(), 1000
-  )
-  if trackview and reaper.JS_Window_IsWindow(trackview) then
-    local ok, width = reaper.JS_Window_GetClientSize(trackview)
-    width = tonumber(width) or 0
-    local endpoint_width = width - ARRANGE_SCROLLBAR_PX - 1 -
-      ACID_RIGHT_PADDING_PX
-    if ok and endpoint_width > 0 then
-      view_span_qn = span_qn * width / endpoint_width
-    end
+local function set_exact_span(level, anchor_qn)
+  local view_span_qn = level_view_span(level)
+  if level == 0 then
+    reaper.GetSet_ArrangeView2(
+      0, true, 0, 0,
+      reaper.TimeMap2_QNToTime(0, 0),
+      reaper.TimeMap2_QNToTime(0, view_span_qn)
+    )
+    return
   end
 
-  local anchor_ratio = mouse_anchor_ratio(trackview)
-  local anchor_qn = start_qn + (end_qn - start_qn) * anchor_ratio
-  local new_start_qn = anchor_qn - view_span_qn * anchor_ratio
+  local new_start_qn = anchor_qn - view_span_qn * 0.5
   local new_end_qn = new_start_qn + view_span_qn
 
   if new_start_qn < 0 then
@@ -164,8 +190,8 @@ local function apply_native_grid(level)
   )
 end
 
-local function apply_level(level, start_qn, end_qn)
-  set_exact_span(start_qn, end_qn, spans[level])
+local function apply_level(level, anchor_qn)
+  set_exact_span(level, anchor_qn)
   apply_native_grid(level)
 
   if reaper.GetToggleCommandState(CMD_RULER_MBT_AND_SECONDS) ~= 1 then
@@ -187,11 +213,16 @@ local current_level = read_level(visible_qn)
 local target_level
 
 if direction > 0 then
+  if current_level >= MAX_LEVEL then return end
   target_level = math.min(current_level + 1, MAX_LEVEL)
 else
+  if current_level <= 0 then
+    apply_level(0, 0)
+    return
+  end
   target_level = math.max(current_level - 1, 0)
 end
 
--- Reapplying the boundary level repairs any view changed by another action,
--- while repeated wheel input remains visually fixed at the ACID limit.
-apply_level(target_level, start_qn, end_qn)
+-- ACID centers the time under the mouse at each new zoom level. Level 0
+-- always returns to the project start, and repeated hard-limit input is fixed.
+apply_level(target_level, mouse_anchor_qn(start_qn, end_qn))
