@@ -17,6 +17,8 @@ points continuam sendo processados pelo próprio REAPER.
 - Snap, loop points e time selection nativos.
 - Captura direta da roda sobre o arrange, sem cadastrar `Mousewheel` em
   `Actions` e sem alterar os Mouse Modifiers do REAPER.
+- Exibição das subdivisões pequenas com espaçamento visual mínimo de 1 px.
+- Snap sempre sincronizado com a divisão visível enquanto o modo está ligado.
 
 ## Limitação do REAPER
 
@@ -25,6 +27,13 @@ O ReaScript consegue controlar a divisão real do grid com
 e risquinhos desenhados na régua nativa. Portanto, o espaçamento e o snap podem
 ser iguais ao ACID, enquanto a quantidade/formatação dos rótulos continua sob
 controle do REAPER.
+
+O campo nativo de compassos do arrange/transport também mostra frações
+decimais do beat, não os 768 ticks PPQ usados pelo ACID. Assim, a posição e o
+tempo podem coincidir exatamente, mas um ponto que o ACID escreve como
+`1.1.002` pode receber outro texto no campo nativo do REAPER. Reproduzir esse
+texto literalmente exigiria novamente um mostrador personalizado; ele não é
+usado neste pacote para preservar a interação nativa e evitar overlays.
 
 ## Instalação pelo ReaPack
 
@@ -62,6 +71,8 @@ quando o pacote for atualizado.
 O clique no toolbar é a única ativação necessária. Ao desligar o botão, o
 serviço libera imediatamente a roda e o REAPER volta ao comportamento anterior.
 O grid, o cursor, os loop points e a time selection continuam nativos.
+O serviço também restaura o espaçamento mínimo de grid e a preferência
+`Grid snap settings follow grid visibility` que estavam ativos antes de ligar.
 
 ## Ação antiga de Mousewheel
 
@@ -80,8 +91,8 @@ precisa de atalho e não deve ser usada junto com o modo do toolbar.
 
 - REAPER 7 ou mais recente.
 - `js_ReaScriptAPI: API functions for ReaScripts`, disponível pelo ReaPack.
-- SWS é necessário somente se o serviço for iniciado automaticamente pelo
-  recurso Startup Action.
+- SWS, usado para aplicar e restaurar as opções nativas de densidade visual e
+  de snap.
 
 ## Créditos técnicos
 
