@@ -5,9 +5,9 @@ zoom do modo **Ruler Marks** do ACID Pro.
 
 Nos níveis `0` a `20`, tudo é desenhado e processado pelo próprio REAPER. Nos
 níveis `21` a `23`, o limite nativo de `1/1024` do arrange é insuficiente; o
-script acrescenta somente as subdivisões ausentes em um único bitmap composto
-diretamente na área do arrange. Não há janela ReaImGui, régua substituta ou
-overlay flutuante.
+script reforça todas as subdivisões finas com linhas uniformes de 1 pixel,
+compostas diretamente na área do arrange a partir de pequenos bitmaps `1×1`.
+Não há janela ReaImGui, régua substituta ou overlay flutuante.
 
 ## O que é reproduzido
 
@@ -65,7 +65,7 @@ quando o pacote for atualizado.
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro hybrid grid - toggle full ACID mode (ReaPack v1.3.0)`.
+   `ACID Pro hybrid grid - toggle full ACID mode (ReaPack v1.3.1)`.
 3. Adicione essa ação ao toolbar.
 4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
@@ -84,7 +84,7 @@ O serviço também restaura o espaçamento mínimo de grid e a preferência
 
 Se ainda existir uma ação antiga com `(toolbar)` no nome ou cujo caminho
 aponte para `Downloads\Acid grid`, remova esse botão antigo. Somente a ação com
-`ReaPack v1.3.0` no nome recebe as atualizações automáticas deste repositório.
+`ReaPack v1.3.1` no nome recebe as atualizações automáticas deste repositório.
 
 ## Ação antiga de Mousewheel
 
@@ -96,7 +96,7 @@ precisa de atalho e não deve ser usada junto com o modo do toolbar.
 
 - `ACID_Pro_Native_Grid_Service.lua`: botão liga/desliga recomendado; captura
   a roda, aplica os 24 níveis, mantém a grade nativa até o nível `20` e
-  acrescenta apenas as subdivisões que faltam nos níveis `21` a `23`.
+  desenha as subdivisões uniformes de 1 pixel nos níveis `21` a `23`.
 - `ACID_Pro_Native_Grid_Mousewheel_Zoom.lua`: ação legada mantida para
   compatibilidade.
 
