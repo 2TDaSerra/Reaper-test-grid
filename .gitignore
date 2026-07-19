@@ -1,0 +1,4 @@
+*.ReaProject-undo
+*.rpp-bak
+.DS_Store
+Thumbs.db
