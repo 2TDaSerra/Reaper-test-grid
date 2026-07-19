@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="ACID Pro Native Grid" commit="8a3c939d878e19c4b7567203f008cee867a590e3">
+  <category name="Grid">
+    <reapack name="ACID Pro Native Grid.lua" type="script" desc="Native ACID Pro-calibrated adaptive grid and 24-step zoom">
+      <metadata>
+        <description><![CDATA[ACID Pro-calibrated native grid for REAPER.
+
+Installs two Main-section actions:
+- ACID Pro native grid - 24-step mousewheel zoom
+- ACID Pro native grid - optional background synchronizer
+
+No overlay windows or custom graphics are used. REAPER handles grid drawing,
+snapping, loop points, time selections and edit-cursor interaction natively.]]></description>
+        <link rel="website" href="https://github.com/2TDaSerra/Reaper-test-grid">Documentation and source code</link>
+      </metadata>
+      <version name="1.0.0" author="2TDaSerra, OpenAI Codex" time="2026-07-19T11:35:00Z">
+        <changelog><![CDATA[Initial ReaPack release.
+- Add 24 ACID Pro-calibrated zoom levels.
+- Add hard zoom-in and zoom-out limits.
+- Change the native project-grid division at every level.
+- Add an optional lightweight background synchronizer.]]></changelog>
+        <source main="main" file="ACID_Pro_Native_Grid_Mousewheel_Zoom.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/28c21c6d2ab43140cb34dab5451cde2344fa7604/Scripts/ACID_Pro_Native_Grid_Mousewheel_Zoom.lua</source>
+        <source main="main" file="ACID_Pro_Native_Grid_Service.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/8a3c939d878e19c4b7567203f008cee867a590e3/Scripts/ACID_Pro_Native_Grid_Service.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>
