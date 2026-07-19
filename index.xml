@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ACID Pro Native Grid" commit="8a3c939d878e19c4b7567203f008cee867a590e3">
+<index version="1" name="ACID Pro Native Grid" commit="829ccc10dcce0db59f811926fd03cf720935ce31">
   <category name="Grid">
     <reapack name="ACID Pro Native Grid.lua" type="script" desc="Native ACID Pro-calibrated adaptive grid and 24-step zoom">
       <metadata>
@@ -21,6 +21,14 @@ snapping, loop points, time selections and edit-cursor interaction natively.]]><
 - Add an optional lightweight background synchronizer.]]></changelog>
         <source main="main" file="ACID_Pro_Native_Grid_Mousewheel_Zoom.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/28c21c6d2ab43140cb34dab5451cde2344fa7604/Scripts/ACID_Pro_Native_Grid_Mousewheel_Zoom.lua</source>
         <source main="main" file="ACID_Pro_Native_Grid_Service.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/8a3c939d878e19c4b7567203f008cee867a590e3/Scripts/ACID_Pro_Native_Grid_Service.lua</source>
+      </version>
+      <version name="1.1.0" author="2TDaSerra, OpenAI Codex" time="2026-07-19T12:05:00Z">
+        <changelog><![CDATA[- Make toolbar toggle the recommended no-setup mode.
+- Follow every native REAPER horizontal zoom method automatically.
+- Show the toolbar button as enabled while adaptive grid is running.
+- Keep the 24-step mousewheel zoom as an optional hard-limit mode.]]></changelog>
+        <source main="main" file="ACID_Pro_Native_Grid_Mousewheel_Zoom.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/28c21c6d2ab43140cb34dab5451cde2344fa7604/Scripts/ACID_Pro_Native_Grid_Mousewheel_Zoom.lua</source>
+        <source main="main" file="ACID_Pro_Native_Grid_Service.lua">https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/829ccc10dcce0db59f811926fd03cf720935ce31/Scripts/ACID_Pro_Native_Grid_Service.lua</source>
       </version>
     </reapack>
   </category>
