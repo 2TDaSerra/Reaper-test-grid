@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - 24-step mousewheel zoom
--- @version 1.0.0
+-- @version 1.1.0
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -12,33 +12,34 @@ local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
 local RESYNC_TOLERANCE = 0.12
 local EPSILON = 1e-9
+local NATIVE_GRID_LIMIT = 1 / 1024
 
 -- span_ticks is the complete arrange-view width in ACID ruler ticks.
 -- grid_division is in whole notes, the unit used by GetSetProjectGrid.
 local LEVELS = {
   [0]  = { span_ticks = 122880, grid_division = 1 },
-  [1]  = { span_ticks =  92160, grid_division = 1 },
-  [2]  = { span_ticks =  69120, grid_division = 1 / 2 },
+  [1]  = { span_ticks =  89088, grid_division = 1 },
+  [2]  = { span_ticks =  67584, grid_division = 1 / 2 },
   [3]  = { span_ticks =  46080, grid_division = 1 / 4 },
-  [4]  = { span_ticks =  34560, grid_division = 1 / 4 },
+  [4]  = { span_ticks =  33792, grid_division = 1 / 4 },
   [5]  = { span_ticks =  23040, grid_division = 1 / 8 },
-  [6]  = { span_ticks =  17280, grid_division = 1 / 8 },
+  [6]  = { span_ticks =  16896, grid_division = 1 / 8 },
   [7]  = { span_ticks =  11520, grid_division = 1 / 16 },
-  [8]  = { span_ticks =   8640, grid_division = 1 / 16 },
+  [8]  = { span_ticks =   8448, grid_division = 1 / 16 },
   [9]  = { span_ticks =   5760, grid_division = 1 / 32 },
-  [10] = { span_ticks =   4320, grid_division = 1 / 32 },
+  [10] = { span_ticks =   4224, grid_division = 1 / 32 },
   [11] = { span_ticks =   2880, grid_division = 1 / 64 },
-  [12] = { span_ticks =   2160, grid_division = 1 / 64 },
+  [12] = { span_ticks =   2112, grid_division = 1 / 64 },
   [13] = { span_ticks =   1440, grid_division = 1 / 128 },
-  [14] = { span_ticks =   1080, grid_division = 1 / 128 },
+  [14] = { span_ticks =   1056, grid_division = 1 / 128 },
   [15] = { span_ticks =    720, grid_division = 1 / 256 },
-  [16] = { span_ticks =    540, grid_division = 1 / 256 },
+  [16] = { span_ticks =    528, grid_division = 1 / 256 },
   [17] = { span_ticks =    360, grid_division = 1 / 512 },
-  [18] = { span_ticks =    270, grid_division = 1 / 512 },
+  [18] = { span_ticks =    264, grid_division = 1 / 512 },
   [19] = { span_ticks =    180, grid_division = 1 / 1024 },
-  [20] = { span_ticks =    135, grid_division = 1 / 1024 },
+  [20] = { span_ticks =    132, grid_division = 1 / 1024 },
   [21] = { span_ticks =     90, grid_division = 1 / 2048 },
-  [22] = { span_ticks =   67.5, grid_division = 1 / 2048 },
+  [22] = { span_ticks =     66, grid_division = 1 / 2048 },
   [23] = { span_ticks =     45, grid_division = 1 / 4096 },
 }
 
@@ -134,7 +135,7 @@ local function apply_native_grid(level)
     reaper.Main_OnCommand(CMD_TOGGLE_GRID_LINES, 0)
   end
   reaper.GetSetProjectGrid(
-    0, true, LEVELS[level].grid_division, 0, 0
+    0, true, math.max(LEVELS[level].grid_division, NATIVE_GRID_LIMIT), 0, 0
   )
 end
 
