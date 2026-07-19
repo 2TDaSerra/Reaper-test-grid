@@ -24,18 +24,37 @@ e risquinhos desenhados na régua nativa. Portanto, o espaçamento e o snap pode
 ser iguais ao ACID, enquanto a quantidade/formatação dos rótulos continua sob
 controle do REAPER.
 
-## Instalação
+## Instalação pelo ReaPack
+
+Importe esta URL em `Extensions > ReaPack > Import repositories`:
+
+```text
+https://raw.githubusercontent.com/2TDaSerra/Reaper-test-grid/main/index.xml
+```
+
+Depois:
+
+1. Abra `Extensions > ReaPack > Browse packages`.
+2. Procure por `ACID Pro Native Grid`.
+3. Clique com o botão direito no pacote e escolha `Install`.
+4. Clique em `Apply`.
+
+O ReaPack instala e registra automaticamente as duas ações na seção `Main`.
+Não é necessário usar `New action > Load ReaScript`, nem repetir o processo
+quando o pacote for atualizado.
+
+## Configuração depois da instalação
 
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
-2. Em `Actions > Show action list > New action > Load ReaScript`, carregue:
-   - `Scripts/ACID_Pro_Native_Grid_Mousewheel_Zoom.lua`
-   - opcionalmente `Scripts/ACID_Pro_Native_Grid_Service.lua`
-3. Atribua **Mousewheel** somente ao script de mousewheel e remova o mesmo
-   atalho das outras ações de zoom horizontal.
+2. Em `Actions`, procure por
+   `ACID Pro native grid - 24-step mousewheel zoom`.
+3. Atribua **Mousewheel** somente a essa ação e remova o mesmo atalho das
+   outras ações de zoom horizontal.
 4. Deixe `Snap/Grid` habilitado e marque a opção de snap ao grid.
 5. Se quiser que mudanças de zoom feitas fora do mousewheel também atualizem
-   o grid, execute o serviço uma vez e adicione-o à Startup Action do SWS.
+   o grid, execute `ACID Pro native grid - optional background synchronizer`
+   uma vez e adicione essa ação à Startup Action do SWS.
 
 O serviço é opcional. Com o zoom feito exclusivamente pelo script de
 mousewheel, apenas o primeiro arquivo já mantém a calibração.
