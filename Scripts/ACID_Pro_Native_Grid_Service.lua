@@ -1,5 +1,5 @@
--- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.5)
--- @version 1.3.5
+-- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.6)
+-- @version 1.3.6
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -20,16 +20,15 @@
 local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
 local RESYNC_TOLERANCE = 0.12
-local EPSILON = 1e-9
 local CHECK_INTERVAL = 0.05
 local NATIVE_GRID_LIMIT = 1 / 1024
 -- REAPER draws its vertical arrange scrollbar inside child window 1000.
 -- JS_Window_GetClientSize includes this strip even though ruler/grid content
 -- cannot use it.  REAPER/ReaTeam zoom scripts use the same 18 px value.
 local ARRANGE_SCROLLBAR_PX = 18
--- The ACID ruler keeps this measured blank margin after its final visible
--- marker (41.1.000 at level 0, 1.1.045 at level 23).
-local ACID_RIGHT_PADDING_PX = 23
+-- Exact endpoint comparison with both arrange views starting at the same x:
+-- ACID 41.1.000 = x1860; REAPER's drawable right-side calibration = x1887.
+local ACID_RIGHT_PADDING_PX = 27
 
 local LEVELS = {
   [0]  = { span_ticks = 122880, grid_division = 1 },
@@ -80,6 +79,7 @@ local required_js_functions = {
   "JS_WindowMessage_Peek",
   "JS_WindowMessage_Release",
   "JS_Window_GetClientSize",
+  "JS_Window_ScreenToClient",
 }
 
 for _, function_name in ipairs(required_js_functions) do
@@ -182,7 +182,7 @@ local function enable_exact_native_grid_options()
       "Valor retornado pelo REAPER/SWS: " ..
       tostring(applied_grid_spacing) .. "\n\n" ..
       "Atualize SWS e reinicie o REAPER.",
-      "ACID Pro Native Clean Grid 1.3.5", 0
+      "ACID Pro Native Clean Grid 1.3.6", 0
     )
     return false
   end
@@ -259,11 +259,32 @@ local function native_grid_for_level(level)
   return math.max(LEVELS[level].grid_division, NATIVE_GRID_LIMIT)
 end
 
-local function set_exact_span(start_time, start_qn, end_qn, span_qn)
+local function mouse_anchor_ratio()
+  if not trackview_hwnd or
+      not reaper.JS_Window_IsWindow(trackview_hwnd) then
+    return 0.5
+  end
+
+  local ok, width = reaper.JS_Window_GetClientSize(trackview_hwnd)
+  width = tonumber(width) or 0
+  if not ok or width <= 0 then return 0.5 end
+
+  local screen_x, screen_y = reaper.GetMousePosition()
+  local client_x = reaper.JS_Window_ScreenToClient(
+    trackview_hwnd, screen_x, screen_y
+  )
+  client_x = tonumber(client_x)
+  if not client_x then return 0.5 end
+
+  return math.max(0, math.min(1, client_x / width))
+end
+
+local function set_exact_span(start_qn, end_qn, span_qn,
+    anchor_ratio)
   -- REAPER maps the arrange span over the complete child-window width, but
   -- its custom vertical scrollbar occupies the final 18 px of that width.
   -- Compensate that hidden strip and the right-exclusive pixel, then retain
-  -- ACID's measured 23 px blank margin after the final ruler marker.
+  -- ACID's measured 27 px blank margin after the final ruler marker.
   local view_span_qn = span_qn
   if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
     local ok, width = reaper.JS_Window_GetClientSize(trackview_hwnd)
@@ -275,20 +296,14 @@ local function set_exact_span(start_time, start_qn, end_qn, span_qn)
     end
   end
 
-  local center_qn = (start_qn + end_qn) * 0.5
-  local new_start_qn
-  local new_end_qn
+  anchor_ratio = math.max(0, math.min(1, anchor_ratio or 0.5))
+  local anchor_qn = start_qn + (end_qn - start_qn) * anchor_ratio
+  local new_start_qn = anchor_qn - view_span_qn * anchor_ratio
+  local new_end_qn = new_start_qn + view_span_qn
 
-  if start_time <= 0.001 or start_qn <= EPSILON then
+  if new_start_qn < 0 then
     new_start_qn = 0
     new_end_qn = view_span_qn
-  else
-    new_start_qn = center_qn - view_span_qn * 0.5
-    new_end_qn = center_qn + view_span_qn * 0.5
-    if new_start_qn < 0 then
-      new_start_qn = 0
-      new_end_qn = view_span_qn
-    end
   end
 
   reaper.GetSet_ArrangeView2(
@@ -307,8 +322,10 @@ local function apply_native_grid(level)
   )
 end
 
-local function apply_level(level, start_time, start_qn, end_qn)
-  set_exact_span(start_time, start_qn, end_qn, spans[level])
+local function apply_level(level, start_qn, end_qn, anchor_ratio)
+  set_exact_span(
+    start_qn, end_qn, spans[level], anchor_ratio
+  )
   apply_native_grid(level)
 
   if reaper.GetToggleCommandState(CMD_RULER_MBT_AND_SECONDS) ~= 1 then
@@ -339,7 +356,10 @@ local function step_zoom(direction)
 
   -- Reapplying a boundary level repairs a view changed by another action,
   -- while repeated wheel input stays visually fixed at the ACID limit.
-  apply_level(target_level, start_time, start_qn, end_qn)
+  apply_level(
+    target_level, start_qn, end_qn,
+    mouse_anchor_ratio()
+  )
 end
 
 local function signed_word(value)
