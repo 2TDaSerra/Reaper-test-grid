@@ -14,7 +14,9 @@ points continuam sendo processados pelo próprio REAPER.
 - Limite de zoom-in em 45 ticks ACID (`1.1.000` até `1.1.045`).
 - Divisão nativa do grid correspondente a cada nível.
 - Quatro subdivisões nativas entre cada marca principal equivalente do ACID.
-- Snap, loop points e time selection nativos, sem interceptação do mouse.
+- Snap, loop points e time selection nativos.
+- Captura direta da roda sobre o arrange, sem cadastrar `Mousewheel` em
+  `Actions` e sem alterar os Mouse Modifiers do REAPER.
 
 ## Limitação do REAPER
 
@@ -43,41 +45,41 @@ O ReaPack instala e registra automaticamente as duas ações na seção `Main`.
 Não é necessário usar `New action > Load ReaScript`, nem repetir o processo
 quando o pacote for atualizado.
 
-## Uso recomendado: sem configurar o mouse
+## Uso: um botão, sem configurar o mouse
 
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native grid - toggle adaptive grid (toolbar)`.
+   `ACID Pro native grid - toggle full ACID mode (toolbar)`.
 3. Adicione essa ação ao toolbar.
-4. Clique no botão para ligar o grid adaptativo ACID. O botão fica aceso
+4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
-5. Continue usando o zoom normal do REAPER. Não é necessário configurar o
-   mousewheel, atalhos de zoom ou mouse modifiers.
+5. Use a roda do mouse sobre a área de arranjo. O serviço captura a roda
+   diretamente e percorre os 24 níveis medidos, com limite nas duas pontas.
+   Não atribua `Mousewheel` a nenhuma ação deste pacote.
 6. Deixe `Snap/Grid` habilitado e marque a opção de snap ao grid.
 
-Nesse modo, o REAPER mantém seu zoom contínuo normal e o serviço escolhe
-automaticamente a divisão ACID mais próxima. O grid, o cursor, os loop points
-e a time selection continuam totalmente nativos.
+O clique no toolbar é a única ativação necessária. Ao desligar o botão, o
+serviço libera imediatamente a roda e o REAPER volta ao comportamento anterior.
+O grid, o cursor, os loop points e a time selection continuam nativos.
 
-## Modo opcional: 24 passos e limites rígidos
+## Ação antiga de Mousewheel
 
-Use `ACID Pro native grid - 24-step mousewheel zoom` somente se também quiser
-que o zoom fique limitado exatamente aos 24 estados medidos no ACID Pro. Esse
-modo exige atribuir o `Mousewheel` à ação. Ele não é necessário para usar o
-grid adaptativo nativo pelo toolbar.
+A ação `ACID Pro native grid - 24-step mousewheel zoom` permanece no pacote
+apenas por compatibilidade com instalações anteriores. Na versão atual ela não
+precisa de atalho e não deve ser usada junto com o modo do toolbar.
 
 ## Arquivos
 
-- `ACID_Pro_Native_Grid_Mousewheel_Zoom.lua`: zoom rígido e mudança imediata
-  do grid nativo.
-- `ACID_Pro_Native_Grid_Service.lua`: botão liga/desliga recomendado; observa
-  qualquer zoom nativo e sincroniza a divisão do grid.
+- `ACID_Pro_Native_Grid_Service.lua`: botão liga/desliga recomendado; captura
+  a roda no arrange, aplica os 24 níveis e sincroniza o grid nativo.
+- `ACID_Pro_Native_Grid_Mousewheel_Zoom.lua`: ação legada mantida para
+  compatibilidade.
 
 ## Requisitos
 
 - REAPER 7 ou mais recente.
-- Nenhuma extensão é necessária para o funcionamento principal.
+- `js_ReaScriptAPI: API functions for ReaScripts`, disponível pelo ReaPack.
 - SWS é necessário somente se o serviço for iniciado automaticamente pelo
   recurso Startup Action.
 
