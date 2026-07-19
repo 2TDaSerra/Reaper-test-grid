@@ -330,6 +330,20 @@ local function set_exact_span(level, anchor_qn)
     new_end_qn = view_span_qn
   end
 
+  -- ACID does not reveal empty timeline past the current project boundary.
+  -- A new empty project has a calibrated 41.1 (160 QN) right edge; projects
+  -- longer than that extend the boundary to their native project length.
+  -- This keeps middle anchors centered while 41.1 is pinned at the right,
+  -- matching the measured 17.1, 21.1 and 41.1 reference captures.
+  local project_end_qn = reaper.TimeMap2_timeToQN(
+    0, reaper.GetProjectLength(0)
+  )
+  local acid_right_edge_qn = math.max(spans[0], project_end_qn)
+  if new_end_qn > acid_right_edge_qn then
+    new_end_qn = acid_right_edge_qn
+    new_start_qn = math.max(0, new_end_qn - view_span_qn)
+  end
+
   reaper.GetSet_ArrangeView2(
     0, true, 0, 0,
     reaper.TimeMap2_QNToTime(0, new_start_qn),
@@ -374,7 +388,7 @@ local function step_zoom(direction)
     if current_level >= MAX_LEVEL then return end
     target_level = math.min(current_level + 1, MAX_LEVEL)
   else
-    if current_level <= 1 then
+    if current_level <= 0 then
       apply_level(0, 0)
       return
     end
@@ -422,27 +436,6 @@ local function synchronize()
   local end_qn = reaper.TimeMap2_timeToQN(0, end_time)
   local visible_qn = end_qn - start_qn
   if visible_qn <= 0 then return end
-
-  -- A native action can finish processing the same wheel message after this
-  -- script applies level 0, shifting the arrange again on the following UI
-  -- cycle. Keep the ACID zoom-out limit authoritative until the next zoom-in
-  -- step explicitly changes last_level.
-  if last_level == 0 then
-    local expected_span = level_view_span(0)
-    local start_qn = reaper.TimeMap2_timeToQN(0, start_time)
-    local misplaced = math.abs(start_qn) > 1e-9 or
-      math.abs(visible_qn - expected_span) > 1e-9
-    if misplaced then
-      set_exact_span(0, 0)
-      start_time = 0
-      visible_qn = expected_span
-      reaper.SetExtState(
-        EXT_SECTION, project_state_key(), "0", false
-      )
-      reaper.UpdateTimeline()
-      reaper.UpdateArrange()
-    end
-  end
 
   local level = infer_level(visible_qn)
   local _, current_grid = reaper.GetSetProjectGrid(0, false)
