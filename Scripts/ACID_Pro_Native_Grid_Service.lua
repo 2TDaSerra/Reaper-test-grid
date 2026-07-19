@@ -1,5 +1,5 @@
--- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.7)
--- @version 1.3.7
+-- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.8)
+-- @version 1.3.8
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -187,7 +187,7 @@ local function enable_exact_native_grid_options()
       "Valor retornado pelo REAPER/SWS: " ..
       tostring(applied_grid_spacing) .. "\n\n" ..
       "Atualize SWS e reinicie o REAPER.",
-      "ACID Pro Native Clean Grid 1.3.7", 0
+      "ACID Pro Native Clean Grid 1.3.8", 0
     )
     return false
   end
@@ -374,7 +374,7 @@ local function step_zoom(direction)
     if current_level >= MAX_LEVEL then return end
     target_level = math.min(current_level + 1, MAX_LEVEL)
   else
-    if current_level <= 0 then
+    if current_level <= 1 then
       apply_level(0, 0)
       return
     end
@@ -422,6 +422,27 @@ local function synchronize()
   local end_qn = reaper.TimeMap2_timeToQN(0, end_time)
   local visible_qn = end_qn - start_qn
   if visible_qn <= 0 then return end
+
+  -- A native action can finish processing the same wheel message after this
+  -- script applies level 0, shifting the arrange again on the following UI
+  -- cycle. Keep the ACID zoom-out limit authoritative until the next zoom-in
+  -- step explicitly changes last_level.
+  if last_level == 0 then
+    local expected_span = level_view_span(0)
+    local start_qn = reaper.TimeMap2_timeToQN(0, start_time)
+    local misplaced = math.abs(start_qn) > 1e-9 or
+      math.abs(visible_qn - expected_span) > 1e-9
+    if misplaced then
+      set_exact_span(0, 0)
+      start_time = 0
+      visible_qn = expected_span
+      reaper.SetExtState(
+        EXT_SECTION, project_state_key(), "0", false
+      )
+      reaper.UpdateTimeline()
+      reaper.UpdateArrange()
+    end
+  end
 
   local level = infer_level(visible_qn)
   local _, current_grid = reaper.GetSetProjectGrid(0, false)
