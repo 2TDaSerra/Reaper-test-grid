@@ -1,5 +1,5 @@
--- @description ACID Pro hybrid grid - toggle full ACID mode (ReaPack v1.3.0)
--- @version 1.3.0
+-- @description ACID Pro hybrid grid - toggle full ACID mode (ReaPack v1.3.1)
+-- @version 1.3.1
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -10,8 +10,8 @@
 --   arrange view. No Mousewheel shortcut or Mouse Modifier is required.
 --   The wheel follows the 24 measured ACID Pro zoom steps and hard limits.
 --   Levels 0-20 use REAPER's real native grid. Since REAPER's native arrange
---   grid stops at 1/1024, levels 21-23 add only the missing subdivisions by
---   compositing one lightweight bitmap directly into the arrange view.
+--   grid stops at 1/1024, levels 21-23 draw a uniform set of 1-pixel ACID
+--   subdivisions directly into the arrange view with tiny 1x1 bitmaps.
 --   No ReaImGui window, floating overlay or replacement ruler is used.
 --
 --   Requires js_ReaScriptAPI and SWS (available through ReaPack).
@@ -24,7 +24,6 @@ local CHECK_INTERVAL = 0.05
 local HYBRID_FIRST_LEVEL = 21
 local NATIVE_GRID_LIMIT = 1 / 1024
 local SIMPLE_CLICK_DISTANCE = 4
-local RESIZE_SETTLE_TIME = 0.12
 
 local LEVELS = {
   [0]  = { span_ticks = 122880, grid_division = 1 },
@@ -76,9 +75,9 @@ local required_js_functions = {
   "JS_WindowMessage_Peek",
   "JS_WindowMessage_Release",
   "JS_Window_GetClientSize",
+  "JS_Window_Update",
   "JS_LICE_CreateBitmap",
   "JS_LICE_Clear",
-  "JS_LICE_Line",
   "JS_LICE_DestroyBitmap",
   "JS_Composite",
   "JS_Composite_Unlink",
@@ -99,8 +98,6 @@ end
 local required_sws_functions = {
   "SNM_GetIntConfigVar",
   "SNM_SetIntConfigVar",
-  "BR_GetMouseCursorContext",
-  "BR_GetMouseCursorContext_Position",
 }
 
 for _, function_name in ipairs(required_sws_functions) do
@@ -173,13 +170,11 @@ local original_grid_spacing
 local changed_grid_spacing = false
 local snap_follows_grid_command = 0
 local changed_snap_follows_grid = false
-local hybrid_bitmap
-local hybrid_bitmap_width
-local hybrid_bitmap_height
+local hybrid_bitmaps = {}
+local hybrid_bitmap_color
 local hybrid_signature
-local pending_bitmap_width
-local pending_bitmap_height
-local pending_bitmap_since
+local pending_cursor_time
+local pending_cursor_cycles = 0
 
 local function enable_exact_native_grid_options()
   original_grid_spacing = reaper.SNM_GetIntConfigVar(
@@ -201,7 +196,7 @@ local function enable_exact_native_grid_options()
       "Valor retornado pelo REAPER/SWS: " ..
       tostring(applied_grid_spacing) .. "\n\n" ..
       "Atualize SWS e reinicie o REAPER.",
-      "ACID Pro Hybrid Grid 1.3.0", 0
+      "ACID Pro Hybrid Grid 1.3.1", 0
     )
     return false
   end
@@ -288,29 +283,31 @@ local function lice_color_from_native(native_color)
   return 0xFF000000 | (red << 16) | (green << 8) | blue
 end
 
-local function destroy_hybrid_bitmap()
-  if not hybrid_bitmap then
+local function destroy_hybrid_bitmaps()
+  if #hybrid_bitmaps == 0 then
+    hybrid_bitmap_color = nil
     hybrid_signature = nil
     return
   end
-
-  if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
-    reaper.JS_Composite_Unlink(trackview_hwnd, hybrid_bitmap, true)
+  for index = #hybrid_bitmaps, 1, -1 do
+    local bitmap = hybrid_bitmaps[index]
+    if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
+      reaper.JS_Composite_Unlink(trackview_hwnd, bitmap, false)
+    end
+    reaper.JS_LICE_DestroyBitmap(bitmap)
+    hybrid_bitmaps[index] = nil
   end
-  reaper.JS_LICE_DestroyBitmap(hybrid_bitmap)
-  hybrid_bitmap = nil
-  hybrid_bitmap_width = nil
-  hybrid_bitmap_height = nil
+  hybrid_bitmap_color = nil
   hybrid_signature = nil
-  pending_bitmap_width = nil
-  pending_bitmap_height = nil
-  pending_bitmap_since = nil
+  if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
+    reaper.JS_Window_Update(trackview_hwnd)
+  end
 end
 
 local function update_hybrid_grid(
     level, start_time, end_time, start_qn, end_qn)
   if level < HYBRID_FIRST_LEVEL then
-    destroy_hybrid_bitmap()
+    destroy_hybrid_bitmaps()
     return
   end
   if not trackview_hwnd or
@@ -327,72 +324,58 @@ local function update_hybrid_grid(
   if not theme_color or theme_color < 0 then
     theme_color = reaper.GetThemeColor("col_gridlines2", 0)
   end
+  local line_color = lice_color_from_native(theme_color)
   local signature = string.format(
     "%d|%.12f|%.12f|%d|%d|%s",
-    level, start_time, end_time, width, height, tostring(theme_color)
+    level, start_time, end_time, width, height, tostring(line_color)
   )
   if hybrid_signature == signature then return end
 
-  if hybrid_bitmap and (width ~= hybrid_bitmap_width or
-      height ~= hybrid_bitmap_height) then
-    if width ~= pending_bitmap_width or height ~= pending_bitmap_height then
-      pending_bitmap_width = width
-      pending_bitmap_height = height
-      pending_bitmap_since = reaper.time_precise()
-      return
-    end
-    if reaper.time_precise() - pending_bitmap_since < RESIZE_SETTLE_TIME then
-      return
-    end
-  elseif hybrid_bitmap then
-    pending_bitmap_width = nil
-    pending_bitmap_height = nil
-    pending_bitmap_since = nil
-  end
-
-  if not hybrid_bitmap or width ~= hybrid_bitmap_width or
-      height ~= hybrid_bitmap_height then
-    destroy_hybrid_bitmap()
-    hybrid_bitmap = reaper.JS_LICE_CreateBitmap(true, width, height)
-    if not hybrid_bitmap then return end
-    hybrid_bitmap_width = width
-    hybrid_bitmap_height = height
-  end
-
-  reaper.JS_LICE_Clear(hybrid_bitmap, 0x00000000)
-
   local desired_qn = LEVELS[level].grid_division * 4
-  local native_qn = NATIVE_GRID_LIMIT * 4
   local first_index = math.ceil((start_qn - EPSILON) / desired_qn)
   local last_index = math.floor((end_qn + EPSILON) / desired_qn)
   local duration = end_time - start_time
-  local line_color = lice_color_from_native(theme_color)
+  local positions = {}
 
   for index = first_index, last_index do
     local qn = index * desired_qn
-    local native_ratio = qn / native_qn
-    local is_native_line = math.abs(
-      native_ratio - math.floor(native_ratio + 0.5)
-    ) < 1e-7
-    if not is_native_line then
-      local line_time = reaper.TimeMap2_QNToTime(0, qn)
-      local x = math.floor(
-        ((line_time - start_time) / duration) * width + 0.5
-      )
-      if x >= 0 and x < width then
-        reaper.JS_LICE_Line(
-          hybrid_bitmap, x, 0, x, height - 1,
-          line_color, 0.45, "COPY", false
-        )
-      end
+    local line_time = reaper.TimeMap2_QNToTime(0, qn)
+    local x = math.floor(
+      ((line_time - start_time) / duration) * width + 0.5
+    )
+    if x >= 0 and x < width then
+      positions[#positions + 1] = x
     end
   end
 
-  reaper.JS_Composite(
-    trackview_hwnd, 0, 0, width, height,
-    hybrid_bitmap, 0, 0, width, height, true
-  )
+  for index, x in ipairs(positions) do
+    local bitmap = hybrid_bitmaps[index]
+    local created = false
+    if not bitmap then
+      bitmap = reaper.JS_LICE_CreateBitmap(true, 1, 1)
+      if not bitmap then break end
+      hybrid_bitmaps[index] = bitmap
+      created = true
+    end
+    if created or hybrid_bitmap_color ~= line_color then
+      reaper.JS_LICE_Clear(bitmap, line_color)
+    end
+    reaper.JS_Composite(
+      trackview_hwnd, x, 0, 1, height,
+      bitmap, 0, 0, 1, 1, false
+    )
+  end
+
+  for index = #hybrid_bitmaps, #positions + 1, -1 do
+    local bitmap = hybrid_bitmaps[index]
+    reaper.JS_Composite_Unlink(trackview_hwnd, bitmap, false)
+    reaper.JS_LICE_DestroyBitmap(bitmap)
+    hybrid_bitmaps[index] = nil
+  end
+
+  hybrid_bitmap_color = line_color
   hybrid_signature = signature
+  reaper.JS_Window_Update(trackview_hwnd)
 end
 
 local function set_exact_span(start_time, start_qn, end_qn, span_qn)
@@ -520,18 +503,31 @@ local function process_fine_grid_click()
   if moved or (modifier_keys & 0x000C) ~= 0 then return end
   if reaper.GetToggleCommandState(CMD_TOGGLE_SNAP) ~= 1 then return end
 
-  local context_window = reaper.BR_GetMouseCursorContext()
-  if context_window ~= "arrange" then return end
-  local raw_time = reaper.BR_GetMouseCursorContext_Position()
-  if not raw_time or raw_time < 0 then return end
+  local ok, width = reaper.JS_Window_GetClientSize(trackview_hwnd)
+  width = tonumber(width) or 0
+  if not ok or width <= 1 then return end
+  local start_time, end_time = reaper.GetSet_ArrangeView2(
+    0, false, 0, 0
+  )
+  if not start_time or not end_time or end_time <= start_time then return end
+  local ratio = math.max(0, math.min(1, x / width))
+  local raw_time = start_time + (end_time - start_time) * ratio
 
   local grid_qn = LEVELS[level].grid_division * 4
   local raw_qn = reaper.TimeMap2_timeToQN(0, raw_time)
   local snapped_qn = math.floor(raw_qn / grid_qn + 0.5) * grid_qn
   if snapped_qn < 0 then snapped_qn = 0 end
-  reaper.SetEditCurPos(
-    reaper.TimeMap2_QNToTime(0, snapped_qn), true, false
-  )
+  local target_time = reaper.TimeMap2_QNToTime(0, snapped_qn)
+  reaper.SetEditCurPos(target_time, true, false)
+  pending_cursor_time = target_time
+  pending_cursor_cycles = 1
+end
+
+local function apply_pending_cursor()
+  if pending_cursor_cycles <= 0 or not pending_cursor_time then return end
+  reaper.SetEditCurPos(pending_cursor_time, true, false)
+  pending_cursor_cycles = pending_cursor_cycles - 1
+  if pending_cursor_cycles <= 0 then pending_cursor_time = nil end
 end
 
 local function process_mousewheel()
@@ -593,7 +589,7 @@ local function synchronize()
 end
 
 local function cleanup()
-  destroy_hybrid_bitmap()
+  destroy_hybrid_bitmaps()
 
   if wheel_intercepted and trackview_hwnd and
       reaper.JS_Window_IsWindow(trackview_hwnd) then
@@ -737,6 +733,7 @@ local function loop()
     last_heartbeat = now
   end
 
+  apply_pending_cursor()
   process_mousewheel()
   process_fine_grid_click()
   if now - last_check >= CHECK_INTERVAL then
