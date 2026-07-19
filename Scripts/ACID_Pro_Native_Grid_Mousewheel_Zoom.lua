@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - 24-step mousewheel zoom
--- @version 1.1.4
+-- @version 1.1.5
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -216,8 +216,14 @@ if direction > 0 then
   if current_level >= MAX_LEVEL then return end
   target_level = math.min(current_level + 1, MAX_LEVEL)
 else
-  if current_level <= 0 then
+  if current_level <= 1 then
     apply_level(0, 0)
+    -- Reassert after REAPER has finished the originating wheel event.
+    reaper.defer(function()
+      set_exact_span(0, 0)
+      reaper.UpdateTimeline()
+      reaper.UpdateArrange()
+    end)
     return
   end
   target_level = math.max(current_level - 1, 0)
