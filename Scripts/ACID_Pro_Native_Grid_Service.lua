@@ -1,5 +1,5 @@
--- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.2)
--- @version 1.3.2
+-- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.3)
+-- @version 1.3.3
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -26,28 +26,28 @@ local NATIVE_GRID_LIMIT = 1 / 1024
 
 local LEVELS = {
   [0]  = { span_ticks = 122880, grid_division = 1 },
-  [1]  = { span_ticks =  92160, grid_division = 1 },
-  [2]  = { span_ticks =  69120, grid_division = 1 / 2 },
+  [1]  = { span_ticks =  89088, grid_division = 1 },
+  [2]  = { span_ticks =  67584, grid_division = 1 / 2 },
   [3]  = { span_ticks =  46080, grid_division = 1 / 4 },
-  [4]  = { span_ticks =  34560, grid_division = 1 / 4 },
+  [4]  = { span_ticks =  33792, grid_division = 1 / 4 },
   [5]  = { span_ticks =  23040, grid_division = 1 / 8 },
-  [6]  = { span_ticks =  17280, grid_division = 1 / 8 },
+  [6]  = { span_ticks =  16896, grid_division = 1 / 8 },
   [7]  = { span_ticks =  11520, grid_division = 1 / 16 },
-  [8]  = { span_ticks =   8640, grid_division = 1 / 16 },
+  [8]  = { span_ticks =   8448, grid_division = 1 / 16 },
   [9]  = { span_ticks =   5760, grid_division = 1 / 32 },
-  [10] = { span_ticks =   4320, grid_division = 1 / 32 },
+  [10] = { span_ticks =   4224, grid_division = 1 / 32 },
   [11] = { span_ticks =   2880, grid_division = 1 / 64 },
-  [12] = { span_ticks =   2160, grid_division = 1 / 64 },
+  [12] = { span_ticks =   2112, grid_division = 1 / 64 },
   [13] = { span_ticks =   1440, grid_division = 1 / 128 },
-  [14] = { span_ticks =   1080, grid_division = 1 / 128 },
+  [14] = { span_ticks =   1056, grid_division = 1 / 128 },
   [15] = { span_ticks =    720, grid_division = 1 / 256 },
-  [16] = { span_ticks =    540, grid_division = 1 / 256 },
+  [16] = { span_ticks =    528, grid_division = 1 / 256 },
   [17] = { span_ticks =    360, grid_division = 1 / 512 },
-  [18] = { span_ticks =    270, grid_division = 1 / 512 },
+  [18] = { span_ticks =    264, grid_division = 1 / 512 },
   [19] = { span_ticks =    180, grid_division = 1 / 1024 },
-  [20] = { span_ticks =    135, grid_division = 1 / 1024 },
+  [20] = { span_ticks =    132, grid_division = 1 / 1024 },
   [21] = { span_ticks =     90, grid_division = 1 / 2048 },
-  [22] = { span_ticks =   67.5, grid_division = 1 / 2048 },
+  [22] = { span_ticks =     66, grid_division = 1 / 2048 },
   [23] = { span_ticks =     45, grid_division = 1 / 4096 },
 }
 
@@ -72,6 +72,7 @@ local required_js_functions = {
   "JS_WindowMessage_Intercept",
   "JS_WindowMessage_Peek",
   "JS_WindowMessage_Release",
+  "JS_Window_GetClientSize",
 }
 
 for _, function_name in ipairs(required_js_functions) do
@@ -174,7 +175,7 @@ local function enable_exact_native_grid_options()
       "Valor retornado pelo REAPER/SWS: " ..
       tostring(applied_grid_spacing) .. "\n\n" ..
       "Atualize SWS e reinicie o REAPER.",
-      "ACID Pro Native Clean Grid 1.3.2", 0
+      "ACID Pro Native Clean Grid 1.3.3", 0
     )
     return false
   end
@@ -252,19 +253,31 @@ local function native_grid_for_level(level)
 end
 
 local function set_exact_span(start_time, start_qn, end_qn, span_qn)
+  -- GetSet_ArrangeView2 treats the right edge as exclusive. Add exactly one
+  -- client pixel so the measured ACID endpoint (for example 41.1.000 at
+  -- level 0) is inside the view and can be drawn by REAPER's native ruler.
+  local view_span_qn = span_qn
+  if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
+    local ok, width = reaper.JS_Window_GetClientSize(trackview_hwnd)
+    width = tonumber(width) or 0
+    if ok and width > 1 then
+      view_span_qn = span_qn * width / (width - 1)
+    end
+  end
+
   local center_qn = (start_qn + end_qn) * 0.5
   local new_start_qn
   local new_end_qn
 
   if start_time <= 0.001 or start_qn <= EPSILON then
     new_start_qn = 0
-    new_end_qn = span_qn
+    new_end_qn = view_span_qn
   else
-    new_start_qn = center_qn - span_qn * 0.5
-    new_end_qn = center_qn + span_qn * 0.5
+    new_start_qn = center_qn - view_span_qn * 0.5
+    new_end_qn = center_qn + view_span_qn * 0.5
     if new_start_qn < 0 then
       new_start_qn = 0
-      new_end_qn = span_qn
+      new_end_qn = view_span_qn
     end
   end
 
