@@ -1,12 +1,15 @@
--- @description ACID Pro native grid - optional background synchronizer
--- @version 1.0.0
+-- @description ACID Pro native grid - toggle adaptive grid (toolbar)
+-- @version 1.1.0
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
---   Keeps REAPER's native project-grid division synchronized when horizontal
---   zoom is changed by something other than the companion mousewheel action.
+--   Recommended no-setup mode. Add this action to a toolbar and click once
+--   to enable or disable the ACID-calibrated native adaptive grid.
+--
+--   When enabled, every horizontal zoom method remains native to REAPER and
+--   the project-grid division follows the nearest ACID Pro calibration level.
 --   No overlay, bitmap or custom mouse handling is used.
---   Run once to enable and run the same action again to disable.
+--   The toolbar button stays lit while adaptive grid is enabled.
 
 local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
@@ -42,11 +45,44 @@ local LEVELS = {
 local EXT_SECTION = "ACIDProNativeGrid"
 local EXT_KEY_PREFIX = "level:"
 local CMD_TOGGLE_GRID_LINES = 40145
+local SERVICE_EXT_SECTION = "ACIDProNativeGridService"
+local SERVICE_RUNNING_KEY = "running"
+local SERVICE_HEARTBEAT_KEY = "heartbeat"
+local HEARTBEAT_INTERVAL = 0.5
+local STALE_INSTANCE_TIME = 1.5
 
 local section_id, command_id = select(3, reaper.get_action_context())
-if reaper.set_action_options then
-  reaper.set_action_options(5)
-elseif command_id and command_id > 0 then
+local now = reaper.time_precise()
+local previous_token = reaper.GetExtState(
+  SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
+)
+local previous_heartbeat = tonumber(reaper.GetExtState(
+  SERVICE_EXT_SECTION, SERVICE_HEARTBEAT_KEY
+))
+
+-- A second launch is the OFF command for the already-running instance.
+if previous_token ~= "" and previous_heartbeat and
+    now - previous_heartbeat < STALE_INSTANCE_TIME then
+  reaper.SetExtState(
+    SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY,
+    "stop:" .. previous_token, false
+  )
+  if command_id and command_id > 0 then
+    reaper.SetToggleCommandState(section_id, command_id, 0)
+    reaper.RefreshToolbar2(section_id, command_id)
+  end
+  return
+end
+
+local token = string.format("%.9f", now)
+reaper.SetExtState(
+  SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY, token, false
+)
+reaper.SetExtState(
+  SERVICE_EXT_SECTION, SERVICE_HEARTBEAT_KEY, tostring(now), false
+)
+
+if command_id and command_id > 0 then
   reaper.SetToggleCommandState(section_id, command_id, 1)
   reaper.RefreshToolbar2(section_id, command_id)
 end
@@ -57,6 +93,7 @@ for level = 0, MAX_LEVEL do
 end
 
 local last_check = 0
+local last_heartbeat = now
 local last_visible_qn
 local last_level
 
@@ -88,19 +125,16 @@ local function synchronize()
     reaper.TimeMap2_timeToQN(0, start_time)
   if visible_qn <= 0 then return end
 
-  if last_visible_qn and
-      math.abs(visible_qn - last_visible_qn) <= 1e-10 then
-    return
-  end
-  last_visible_qn = visible_qn
-
   local level = infer_level(visible_qn)
   local _, current_grid = reaper.GetSetProjectGrid(0, false)
   local target_grid = LEVELS[level].grid_division
   local grid_changed = not current_grid or
     math.abs(current_grid - target_grid) > 1e-12
+  local view_changed = not last_visible_qn or
+    math.abs(visible_qn - last_visible_qn) > 1e-10
+  last_visible_qn = visible_qn
 
-  if level ~= last_level or grid_changed then
+  if view_changed or level ~= last_level or grid_changed then
     if reaper.GetToggleCommandState(CMD_TOGGLE_GRID_LINES) ~= 1 then
       reaper.Main_OnCommand(CMD_TOGGLE_GRID_LINES, 0)
     end
@@ -115,7 +149,19 @@ local function synchronize()
 end
 
 local function cleanup()
-  if not reaper.set_action_options and command_id and command_id > 0 then
+  local state = reaper.GetExtState(
+    SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
+  )
+  if state == token or state == "stop:" .. token then
+    reaper.DeleteExtState(
+      SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY, false
+    )
+    reaper.DeleteExtState(
+      SERVICE_EXT_SECTION, SERVICE_HEARTBEAT_KEY, false
+    )
+  end
+
+  if command_id and command_id > 0 then
     reaper.SetToggleCommandState(section_id, command_id, 0)
     reaper.RefreshToolbar2(section_id, command_id)
   end
@@ -125,6 +171,20 @@ reaper.atexit(cleanup)
 
 local function loop()
   local now = reaper.time_precise()
+  if reaper.GetExtState(
+      SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
+    ) ~= token then
+    return
+  end
+
+  if now - last_heartbeat >= HEARTBEAT_INTERVAL then
+    reaper.SetExtState(
+      SERVICE_EXT_SECTION, SERVICE_HEARTBEAT_KEY,
+      tostring(now), false
+    )
+    last_heartbeat = now
+  end
+
   if now - last_check >= CHECK_INTERVAL then
     last_check = now
     synchronize()
