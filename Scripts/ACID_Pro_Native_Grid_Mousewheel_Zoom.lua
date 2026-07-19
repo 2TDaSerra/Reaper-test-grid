@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - 24-step mousewheel zoom
--- @version 1.1.0
+-- @version 1.1.1
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -13,6 +13,7 @@ local ACID_TICKS_PER_QUARTER = 768
 local RESYNC_TOLERANCE = 0.12
 local EPSILON = 1e-9
 local NATIVE_GRID_LIMIT = 1 / 1024
+local ARRANGE_SCROLLBAR_PX = 18
 
 -- span_ticks is the complete arrange-view width in ACID ruler ticks.
 -- grid_division is in whole notes, the unit used by GetSetProjectGrid.
@@ -107,19 +108,32 @@ local function read_level(visible_qn)
 end
 
 local function set_exact_span(start_time, start_qn, end_qn, span_qn)
+  local view_span_qn = span_qn
+  local trackview = reaper.JS_Window_FindChildByID(
+    reaper.GetMainHwnd(), 1000
+  )
+  if trackview and reaper.JS_Window_IsWindow(trackview) then
+    local ok, width = reaper.JS_Window_GetClientSize(trackview)
+    width = tonumber(width) or 0
+    local drawable_width = width - ARRANGE_SCROLLBAR_PX
+    if ok and drawable_width > 1 then
+      view_span_qn = span_qn * width / (drawable_width - 1)
+    end
+  end
+
   local center_qn = (start_qn + end_qn) * 0.5
   local new_start_qn
   local new_end_qn
 
   if start_time <= 0.001 or start_qn <= EPSILON then
     new_start_qn = 0
-    new_end_qn = span_qn
+    new_end_qn = view_span_qn
   else
-    new_start_qn = center_qn - span_qn * 0.5
-    new_end_qn = center_qn + span_qn * 0.5
+    new_start_qn = center_qn - view_span_qn * 0.5
+    new_end_qn = center_qn + view_span_qn * 0.5
     if new_start_qn < 0 then
       new_start_qn = 0
-      new_end_qn = span_qn
+      new_end_qn = view_span_qn
     end
   end
 
