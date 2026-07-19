@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - 24-step mousewheel zoom
--- @version 1.1.2
+-- @version 1.1.3
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -11,10 +11,9 @@
 local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
 local RESYNC_TOLERANCE = 0.12
-local EPSILON = 1e-9
 local NATIVE_GRID_LIMIT = 1 / 1024
 local ARRANGE_SCROLLBAR_PX = 18
-local ACID_RIGHT_PADDING_PX = 23
+local ACID_RIGHT_PADDING_PX = 27
 
 -- span_ticks is the complete arrange-view width in ACID ruler ticks.
 -- grid_division is in whole notes, the unit used by GetSetProjectGrid.
@@ -108,7 +107,23 @@ local function read_level(visible_qn)
   return stored
 end
 
-local function set_exact_span(start_time, start_qn, end_qn, span_qn)
+local function mouse_anchor_ratio(trackview)
+  if not trackview or not reaper.JS_Window_IsWindow(trackview) then
+    return 0.5
+  end
+  local ok, width = reaper.JS_Window_GetClientSize(trackview)
+  width = tonumber(width) or 0
+  if not ok or width <= 0 then return 0.5 end
+  local screen_x, screen_y = reaper.GetMousePosition()
+  local client_x = reaper.JS_Window_ScreenToClient(
+    trackview, screen_x, screen_y
+  )
+  client_x = tonumber(client_x)
+  if not client_x then return 0.5 end
+  return math.max(0, math.min(1, client_x / width))
+end
+
+local function set_exact_span(start_qn, end_qn, span_qn)
   local view_span_qn = span_qn
   local trackview = reaper.JS_Window_FindChildByID(
     reaper.GetMainHwnd(), 1000
@@ -123,20 +138,14 @@ local function set_exact_span(start_time, start_qn, end_qn, span_qn)
     end
   end
 
-  local center_qn = (start_qn + end_qn) * 0.5
-  local new_start_qn
-  local new_end_qn
+  local anchor_ratio = mouse_anchor_ratio(trackview)
+  local anchor_qn = start_qn + (end_qn - start_qn) * anchor_ratio
+  local new_start_qn = anchor_qn - view_span_qn * anchor_ratio
+  local new_end_qn = new_start_qn + view_span_qn
 
-  if start_time <= 0.001 or start_qn <= EPSILON then
+  if new_start_qn < 0 then
     new_start_qn = 0
     new_end_qn = view_span_qn
-  else
-    new_start_qn = center_qn - view_span_qn * 0.5
-    new_end_qn = center_qn + view_span_qn * 0.5
-    if new_start_qn < 0 then
-      new_start_qn = 0
-      new_end_qn = view_span_qn
-    end
   end
 
   reaper.GetSet_ArrangeView2(
@@ -155,8 +164,8 @@ local function apply_native_grid(level)
   )
 end
 
-local function apply_level(level, start_time, start_qn, end_qn)
-  set_exact_span(start_time, start_qn, end_qn, spans[level])
+local function apply_level(level, start_qn, end_qn)
+  set_exact_span(start_qn, end_qn, spans[level])
   apply_native_grid(level)
 
   if reaper.GetToggleCommandState(CMD_RULER_MBT_AND_SECONDS) ~= 1 then
@@ -185,4 +194,4 @@ end
 
 -- Reapplying the boundary level repairs any view changed by another action,
 -- while repeated wheel input remains visually fixed at the ACID limit.
-apply_level(target_level, start_time, start_qn, end_qn)
+apply_level(target_level, start_qn, end_qn)
