@@ -59,7 +59,7 @@ quando o pacote for atualizado.
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native grid - toggle full ACID mode (toolbar)`.
+   `ACID Pro native grid - toggle full ACID mode (ReaPack v1.2.2)`.
 3. Adicione essa ação ao toolbar.
 4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
@@ -73,6 +73,10 @@ serviço libera imediatamente a roda e o REAPER volta ao comportamento anterior.
 O grid, o cursor, os loop points e a time selection continuam nativos.
 O serviço também restaura o espaçamento mínimo de grid e a preferência
 `Grid snap settings follow grid visibility` que estavam ativos antes de ligar.
+
+Se ainda existir uma ação antiga com `(toolbar)` no nome ou cujo caminho
+aponte para `Downloads\Acid grid`, remova esse botão antigo. Somente a ação com
+`ReaPack v1.2.2` no nome recebe as atualizações automáticas deste repositório.
 
 ## Ação antiga de Mousewheel
 
