@@ -1,5 +1,5 @@
--- @description ACID Pro native grid - toggle full ACID mode (toolbar)
--- @version 1.2.1
+-- @description ACID Pro native grid - toggle full ACID mode (ReaPack v1.2.2)
+-- @version 1.2.2
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -155,9 +155,24 @@ local function enable_exact_native_grid_options()
     "projgridmin", ACID_MIN_GRID_SPACING_PX
   )
   if original_grid_spacing ~= ACID_MIN_GRID_SPACING_PX then
-    changed_grid_spacing = reaper.SNM_SetIntConfigVar(
+    reaper.SNM_SetIntConfigVar(
       "projgridmin", ACID_MIN_GRID_SPACING_PX
-    ) == true
+    )
+    changed_grid_spacing = true
+  end
+
+  local applied_grid_spacing = reaper.SNM_GetIntConfigVar(
+    "projgridmin", -1
+  )
+  if applied_grid_spacing ~= ACID_MIN_GRID_SPACING_PX then
+    reaper.MB(
+      "Não foi possível aplicar o espaçamento nativo de 1 px.\n\n" ..
+      "Valor retornado pelo REAPER/SWS: " ..
+      tostring(applied_grid_spacing) .. "\n\n" ..
+      "Atualize SWS e reinicie o REAPER.",
+      "ACID Pro Native Grid 1.2.2", 0
+    )
+    return false
   end
 
   snap_follows_grid_command = reaper.NamedCommandLookup(
