@@ -43,28 +43,36 @@ O ReaPack instala e registra automaticamente as duas ações na seção `Main`.
 Não é necessário usar `New action > Load ReaScript`, nem repetir o processo
 quando o pacote for atualizado.
 
-## Configuração depois da instalação
+## Uso recomendado: sem configurar o mouse
 
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native grid - 24-step mousewheel zoom`.
-3. Atribua **Mousewheel** somente a essa ação e remova o mesmo atalho das
-   outras ações de zoom horizontal.
-4. Deixe `Snap/Grid` habilitado e marque a opção de snap ao grid.
-5. Se quiser que mudanças de zoom feitas fora do mousewheel também atualizem
-   o grid, execute `ACID Pro native grid - optional background synchronizer`
-   uma vez e adicione essa ação à Startup Action do SWS.
+   `ACID Pro native grid - toggle adaptive grid (toolbar)`.
+3. Adicione essa ação ao toolbar.
+4. Clique no botão para ligar o grid adaptativo ACID. O botão fica aceso
+   enquanto estiver ligado; clique novamente para desligar.
+5. Continue usando o zoom normal do REAPER. Não é necessário configurar o
+   mousewheel, atalhos de zoom ou mouse modifiers.
+6. Deixe `Snap/Grid` habilitado e marque a opção de snap ao grid.
 
-O serviço é opcional. Com o zoom feito exclusivamente pelo script de
-mousewheel, apenas o primeiro arquivo já mantém a calibração.
+Nesse modo, o REAPER mantém seu zoom contínuo normal e o serviço escolhe
+automaticamente a divisão ACID mais próxima. O grid, o cursor, os loop points
+e a time selection continuam totalmente nativos.
+
+## Modo opcional: 24 passos e limites rígidos
+
+Use `ACID Pro native grid - 24-step mousewheel zoom` somente se também quiser
+que o zoom fique limitado exatamente aos 24 estados medidos no ACID Pro. Esse
+modo exige atribuir o `Mousewheel` à ação. Ele não é necessário para usar o
+grid adaptativo nativo pelo toolbar.
 
 ## Arquivos
 
 - `ACID_Pro_Native_Grid_Mousewheel_Zoom.lua`: zoom rígido e mudança imediata
   do grid nativo.
-- `ACID_Pro_Native_Grid_Service.lua`: observa outras mudanças de zoom e
-  sincroniza somente a divisão nativa do grid.
+- `ACID_Pro_Native_Grid_Service.lua`: botão liga/desliga recomendado; observa
+  qualquer zoom nativo e sincroniza a divisão do grid.
 
 ## Requisitos
 
