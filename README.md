@@ -70,7 +70,7 @@ quando o pacote for atualizado.
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.7)`.
+   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.8)`.
 3. Adicione essa ação ao toolbar.
 4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
@@ -88,7 +88,7 @@ O serviço também restaura o espaçamento mínimo de grid e a preferência
 
 Se ainda existir uma ação antiga com `(toolbar)` no nome ou cujo caminho
 aponte para `Downloads\Acid grid`, remova esse botão antigo. Somente a ação com
-`ReaPack v1.3.7` no nome recebe as atualizações automáticas deste repositório.
+`ReaPack v1.3.8` no nome recebe as atualizações automáticas deste repositório.
 
 ## Ação antiga de Mousewheel
 
