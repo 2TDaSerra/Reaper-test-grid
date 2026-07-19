@@ -1,5 +1,5 @@
--- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.4)
--- @version 1.3.4
+-- @description ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.5)
+-- @version 1.3.5
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -27,6 +27,9 @@ local NATIVE_GRID_LIMIT = 1 / 1024
 -- JS_Window_GetClientSize includes this strip even though ruler/grid content
 -- cannot use it.  REAPER/ReaTeam zoom scripts use the same 18 px value.
 local ARRANGE_SCROLLBAR_PX = 18
+-- The ACID ruler keeps this measured blank margin after its final visible
+-- marker (41.1.000 at level 0, 1.1.045 at level 23).
+local ACID_RIGHT_PADDING_PX = 23
 
 local LEVELS = {
   [0]  = { span_ticks = 122880, grid_division = 1 },
@@ -179,7 +182,7 @@ local function enable_exact_native_grid_options()
       "Valor retornado pelo REAPER/SWS: " ..
       tostring(applied_grid_spacing) .. "\n\n" ..
       "Atualize SWS e reinicie o REAPER.",
-      "ACID Pro Native Clean Grid 1.3.4", 0
+      "ACID Pro Native Clean Grid 1.3.5", 0
     )
     return false
   end
@@ -259,16 +262,16 @@ end
 local function set_exact_span(start_time, start_qn, end_qn, span_qn)
   -- REAPER maps the arrange span over the complete child-window width, but
   -- its custom vertical scrollbar occupies the final 18 px of that width.
-  -- Compensate that hidden strip, then add one drawable pixel because the
-  -- right edge is exclusive.  This puts the measured ACID endpoint (for
-  -- example 41.1.000 at level 0) on the last visible ruler pixel.
+  -- Compensate that hidden strip and the right-exclusive pixel, then retain
+  -- ACID's measured 23 px blank margin after the final ruler marker.
   local view_span_qn = span_qn
   if trackview_hwnd and reaper.JS_Window_IsWindow(trackview_hwnd) then
     local ok, width = reaper.JS_Window_GetClientSize(trackview_hwnd)
     width = tonumber(width) or 0
-    local drawable_width = width - ARRANGE_SCROLLBAR_PX
-    if ok and drawable_width > 1 then
-      view_span_qn = span_qn * width / (drawable_width - 1)
+    local endpoint_width = width - ARRANGE_SCROLLBAR_PX - 1 -
+      ACID_RIGHT_PADDING_PX
+    if ok and endpoint_width > 0 then
+      view_span_qn = span_qn * width / endpoint_width
     end
   end
 
