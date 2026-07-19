@@ -1,18 +1,23 @@
--- @description ACID Pro native grid - toggle adaptive grid (toolbar)
--- @version 1.1.0
+-- @description ACID Pro native grid - toggle full ACID mode (toolbar)
+-- @version 1.2.0
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
 --   Recommended no-setup mode. Add this action to a toolbar and click once
---   to enable or disable the ACID-calibrated native adaptive grid.
+--   to enable or disable the complete ACID-calibrated grid and zoom mode.
 --
---   When enabled, every horizontal zoom method remains native to REAPER and
---   the project-grid division follows the nearest ACID Pro calibration level.
---   No overlay, bitmap or custom mouse handling is used.
---   The toolbar button stays lit while adaptive grid is enabled.
+--   When enabled, the script captures the mouse wheel directly over REAPER's
+--   arrange view. No Mousewheel shortcut or Mouse Modifier is required.
+--   The wheel follows the 24 measured ACID Pro zoom steps and hard limits,
+--   while the project uses REAPER's real native grid, snapping and ruler.
+--   No overlay, bitmap or custom-drawn grid is used.
+--
+--   Requires js_ReaScriptAPI (available through ReaPack).
 
 local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
+local RESYNC_TOLERANCE = 0.12
+local EPSILON = 1e-9
 local CHECK_INTERVAL = 0.05
 
 local LEVELS = {
@@ -45,6 +50,7 @@ local LEVELS = {
 local EXT_SECTION = "ACIDProNativeGrid"
 local EXT_KEY_PREFIX = "level:"
 local CMD_TOGGLE_GRID_LINES = 40145
+local CMD_RULER_MBT_AND_SECONDS = 40366
 local SERVICE_EXT_SECTION = "ACIDProNativeGridService"
 local SERVICE_RUNNING_KEY = "running"
 local SERVICE_HEARTBEAT_KEY = "heartbeat"
@@ -53,6 +59,27 @@ local STALE_INSTANCE_TIME = 1.5
 
 local section_id, command_id = select(3, reaper.get_action_context())
 local now = reaper.time_precise()
+
+local required_js_functions = {
+  "JS_Window_FindChildByID",
+  "JS_Window_IsWindow",
+  "JS_WindowMessage_Intercept",
+  "JS_WindowMessage_Peek",
+  "JS_WindowMessage_Release",
+}
+
+for _, function_name in ipairs(required_js_functions) do
+  if type(reaper[function_name]) ~= "function" then
+    reaper.MB(
+      "Este modo precisa da extensão js_ReaScriptAPI.\n\n" ..
+      "Instale ou atualize 'js_ReaScriptAPI: API functions for ReaScripts' " ..
+      "pelo ReaPack e reinicie o REAPER.",
+      "ACID Pro Native Grid", 0
+    )
+    return
+  end
+end
+
 local previous_token = reaper.GetExtState(
   SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
 )
@@ -96,6 +123,9 @@ local last_check = 0
 local last_heartbeat = now
 local last_visible_qn
 local last_level
+local trackview_hwnd
+local wheel_intercepted = false
+local last_wheel_time = now
 
 local function project_state_key()
   local project = reaper.EnumProjects(-1, "")
@@ -103,6 +133,11 @@ local function project_state_key()
 end
 
 local function infer_level(visible_qn)
+  if visible_qn >= spans[0] * (1 - RESYNC_TOLERANCE) then return 0 end
+  if visible_qn <= spans[MAX_LEVEL] * (1 + RESYNC_TOLERANCE) then
+    return MAX_LEVEL
+  end
+
   local closest_level = 0
   local closest_distance = math.huge
   for level = 0, MAX_LEVEL do
@@ -113,6 +148,126 @@ local function infer_level(visible_qn)
     end
   end
   return closest_level
+end
+
+local function read_level(visible_qn)
+  local stored = tonumber(reaper.GetExtState(
+    EXT_SECTION, project_state_key()
+  ))
+  if not stored then return infer_level(visible_qn) end
+
+  stored = math.max(0, math.min(MAX_LEVEL, math.floor(stored + 0.5)))
+  local error_ratio = math.abs(visible_qn - spans[stored]) / spans[stored]
+  if error_ratio > RESYNC_TOLERANCE then
+    return infer_level(visible_qn)
+  end
+  return stored
+end
+
+local function get_view()
+  local start_time, end_time = reaper.GetSet_ArrangeView2(
+    0, false, 0, 0
+  )
+  if not start_time or not end_time or end_time <= start_time then
+    return nil
+  end
+  return start_time, end_time,
+    reaper.TimeMap2_timeToQN(0, start_time),
+    reaper.TimeMap2_timeToQN(0, end_time)
+end
+
+local function set_exact_span(start_time, start_qn, end_qn, span_qn)
+  local center_qn = (start_qn + end_qn) * 0.5
+  local new_start_qn
+  local new_end_qn
+
+  if start_time <= 0.001 or start_qn <= EPSILON then
+    new_start_qn = 0
+    new_end_qn = span_qn
+  else
+    new_start_qn = center_qn - span_qn * 0.5
+    new_end_qn = center_qn + span_qn * 0.5
+    if new_start_qn < 0 then
+      new_start_qn = 0
+      new_end_qn = span_qn
+    end
+  end
+
+  reaper.GetSet_ArrangeView2(
+    0, true, 0, 0,
+    reaper.TimeMap2_QNToTime(0, new_start_qn),
+    reaper.TimeMap2_QNToTime(0, new_end_qn)
+  )
+end
+
+local function apply_native_grid(level)
+  if reaper.GetToggleCommandState(CMD_TOGGLE_GRID_LINES) ~= 1 then
+    reaper.Main_OnCommand(CMD_TOGGLE_GRID_LINES, 0)
+  end
+  reaper.GetSetProjectGrid(
+    0, true, LEVELS[level].grid_division, 0, 0
+  )
+end
+
+local function apply_level(level, start_time, start_qn, end_qn)
+  set_exact_span(start_time, start_qn, end_qn, spans[level])
+  apply_native_grid(level)
+
+  if reaper.GetToggleCommandState(CMD_RULER_MBT_AND_SECONDS) ~= 1 then
+    reaper.Main_OnCommand(CMD_RULER_MBT_AND_SECONDS, 0)
+  end
+
+  reaper.SetExtState(
+    EXT_SECTION, project_state_key(), tostring(level), false
+  )
+  last_level = level
+  last_visible_qn = spans[level]
+  reaper.UpdateTimeline()
+  reaper.UpdateArrange()
+end
+
+local function step_zoom(direction)
+  local start_time, _, start_qn, end_qn = get_view()
+  if not start_time then return end
+
+  local visible_qn = end_qn - start_qn
+  local current_level = read_level(visible_qn)
+  local target_level
+  if direction > 0 then
+    target_level = math.min(current_level + 1, MAX_LEVEL)
+  else
+    target_level = math.max(current_level - 1, 0)
+  end
+
+  -- Reapplying a boundary level repairs a view changed by another action,
+  -- while repeated wheel input stays visually fixed at the ACID limit.
+  apply_level(target_level, start_time, start_qn, end_qn)
+end
+
+local function signed_word(value)
+  value = tonumber(value) or 0
+  if value > 32767 then value = value - 65536 end
+  return value
+end
+
+local function process_mousewheel()
+  if not wheel_intercepted or not trackview_hwnd then return end
+  if not reaper.JS_Window_IsWindow(trackview_hwnd) then return end
+
+  local received, _, message_time, _, delta =
+    reaper.JS_WindowMessage_Peek(trackview_hwnd, "WM_MOUSEWHEEL")
+  message_time = tonumber(message_time) or 0
+  if not received or message_time <= last_wheel_time then return end
+  last_wheel_time = message_time
+
+  delta = signed_word(delta)
+  if delta == 0 then return end
+
+  -- Normal wheels report 120 per notch. High-resolution wheels can report
+  -- smaller values, which still count as one deliberate ACID zoom step.
+  local step_count = math.max(1, math.floor(math.abs(delta) / 120 + 0.5))
+  local direction = delta > 0 and 1 or -1
+  for _ = 1, step_count do step_zoom(direction) end
 end
 
 local function synchronize()
@@ -149,6 +304,12 @@ local function synchronize()
 end
 
 local function cleanup()
+  if wheel_intercepted and trackview_hwnd and
+      reaper.JS_Window_IsWindow(trackview_hwnd) then
+    reaper.JS_WindowMessage_Release(trackview_hwnd, "WM_MOUSEWHEEL")
+  end
+  wheel_intercepted = false
+
   local state = reaper.GetExtState(
     SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
   )
@@ -169,6 +330,36 @@ end
 
 reaper.atexit(cleanup)
 
+trackview_hwnd = reaper.JS_Window_FindChildByID(
+  reaper.GetMainHwnd(), 1000
+)
+if not trackview_hwnd or not reaper.JS_Window_IsWindow(trackview_hwnd) then
+  reaper.MB(
+    "Não foi possível localizar a área de arranjo do REAPER.",
+    "ACID Pro Native Grid", 0
+  )
+  return
+end
+
+local intercept_result = reaper.JS_WindowMessage_Intercept(
+  trackview_hwnd, "WM_MOUSEWHEEL", false
+)
+if intercept_result ~= true and intercept_result ~= 1 then
+  reaper.MB(
+    "A roda do mouse já está sendo interceptada por outro script.\n\n" ..
+    "Desative o outro script e ligue novamente o modo ACID.",
+    "ACID Pro Native Grid", 0
+  )
+  return
+end
+wheel_intercepted = true
+do
+  local _, _, initial_message_time = reaper.JS_WindowMessage_Peek(
+    trackview_hwnd, "WM_MOUSEWHEEL"
+  )
+  last_wheel_time = tonumber(initial_message_time) or 0
+end
+
 local function loop()
   local now = reaper.time_precise()
   if reaper.GetExtState(
@@ -185,6 +376,7 @@ local function loop()
     last_heartbeat = now
   end
 
+  process_mousewheel()
   if now - last_check >= CHECK_INTERVAL then
     last_check = now
     synchronize()
