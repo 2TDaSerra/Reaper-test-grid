@@ -16,13 +16,15 @@ ACID, mas grade e snap permanecem no limite nativo limpo de `1/1024`.
 - Largura temporal de cada passo copiada dos limites medidos: `80 s`, `58 s`,
   `44 s`, `30 s`, `22 s`, seguindo a tabela até `29,296875 ms`.
 - Compensação da barra vertical interna de 18 px, da borda direita exclusiva
-  e da margem final de 23 px medida no ACID, mantendo a mesma compactação.
+  e da margem final de 27 px medida com os dois arranges alinhados.
 - Divisão nativa correspondente ao ACID nos níveis `0` a `20`.
 - Grade e snap nativos fixados em `1/1024` nos níveis `21` a `23`.
 - Clique, cursor, itens, loop points, time selection e arrastos inteiramente
   nativos em todos os níveis.
 - Captura direta da roda sobre o arrange, sem cadastrar `Mousewheel` em
   `Actions` e sem alterar os Mouse Modifiers do REAPER.
+- Zoom ancorado na posição do mouse, preservando sob o ponteiro o mesmo ponto
+  da timeline ao aproximar ou afastar, como no ACID.
 - Exibição das subdivisões pequenas com espaçamento visual mínimo de 1 px.
 - Snap sempre sincronizado com a divisão visível enquanto o modo está ligado.
 
@@ -66,7 +68,7 @@ quando o pacote for atualizado.
 1. Pare e remova da inicialização o script antigo
    `ACID_Pro_Ruler_And_Cursor_Overlay.lua`.
 2. Em `Actions`, procure por
-   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.5)`.
+   `ACID Pro native clean grid - toggle 24-step mode (ReaPack v1.3.6)`.
 3. Adicione essa ação ao toolbar.
 4. Clique no botão para ligar o modo ACID completo. O botão fica aceso
    enquanto estiver ligado; clique novamente para desligar.
@@ -84,7 +86,7 @@ O serviço também restaura o espaçamento mínimo de grid e a preferência
 
 Se ainda existir uma ação antiga com `(toolbar)` no nome ou cujo caminho
 aponte para `Downloads\Acid grid`, remova esse botão antigo. Somente a ação com
-`ReaPack v1.3.5` no nome recebe as atualizações automáticas deste repositório.
+`ReaPack v1.3.6` no nome recebe as atualizações automáticas deste repositório.
 
 ## Ação antiga de Mousewheel
 
