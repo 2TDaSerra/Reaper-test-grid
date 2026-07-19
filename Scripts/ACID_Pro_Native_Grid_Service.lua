@@ -1,5 +1,5 @@
 -- @description ACID Pro native grid - toggle full ACID mode (toolbar)
--- @version 1.2.0
+-- @version 1.2.1
 -- @author 2TDaSerra, OpenAI Codex
 -- @license MIT
 -- @about
@@ -12,7 +12,7 @@
 --   while the project uses REAPER's real native grid, snapping and ruler.
 --   No overlay, bitmap or custom-drawn grid is used.
 --
---   Requires js_ReaScriptAPI (available through ReaPack).
+--   Requires js_ReaScriptAPI and SWS (available through ReaPack).
 
 local MAX_LEVEL = 23
 local ACID_TICKS_PER_QUARTER = 768
@@ -51,6 +51,8 @@ local EXT_SECTION = "ACIDProNativeGrid"
 local EXT_KEY_PREFIX = "level:"
 local CMD_TOGGLE_GRID_LINES = 40145
 local CMD_RULER_MBT_AND_SECONDS = 40366
+local SWS_SNAP_FOLLOWS_GRID = "_BR_OPTIONS_SNAP_FOLLOW_GRID_VIS"
+local ACID_MIN_GRID_SPACING_PX = 1
 local SERVICE_EXT_SECTION = "ACIDProNativeGridService"
 local SERVICE_RUNNING_KEY = "running"
 local SERVICE_HEARTBEAT_KEY = "heartbeat"
@@ -74,6 +76,23 @@ for _, function_name in ipairs(required_js_functions) do
       "Este modo precisa da extensão js_ReaScriptAPI.\n\n" ..
       "Instale ou atualize 'js_ReaScriptAPI: API functions for ReaScripts' " ..
       "pelo ReaPack e reinicie o REAPER.",
+      "ACID Pro Native Grid", 0
+    )
+    return
+  end
+end
+
+local required_sws_functions = {
+  "SNM_GetIntConfigVar",
+  "SNM_SetIntConfigVar",
+}
+
+for _, function_name in ipairs(required_sws_functions) do
+  if type(reaper[function_name]) ~= "function" then
+    reaper.MB(
+      "Este modo precisa da extensão SWS para mostrar e usar todas " ..
+      "as subdivisões pequenas do ACID.\n\n" ..
+      "Instale ou atualize SWS e reinicie o REAPER.",
       "ACID Pro Native Grid", 0
     )
     return
@@ -126,6 +145,39 @@ local last_level
 local trackview_hwnd
 local wheel_intercepted = false
 local last_wheel_time = now
+local original_grid_spacing
+local changed_grid_spacing = false
+local snap_follows_grid_command = 0
+local changed_snap_follows_grid = false
+
+local function enable_exact_native_grid_options()
+  original_grid_spacing = reaper.SNM_GetIntConfigVar(
+    "projgridmin", ACID_MIN_GRID_SPACING_PX
+  )
+  if original_grid_spacing ~= ACID_MIN_GRID_SPACING_PX then
+    changed_grid_spacing = reaper.SNM_SetIntConfigVar(
+      "projgridmin", ACID_MIN_GRID_SPACING_PX
+    ) == true
+  end
+
+  snap_follows_grid_command = reaper.NamedCommandLookup(
+    SWS_SNAP_FOLLOWS_GRID
+  )
+  if snap_follows_grid_command == 0 then
+    reaper.MB(
+      "A ação SWS que sincroniza o snap com a grade visível não foi " ..
+      "encontrada.\n\nAtualize SWS e ligue novamente o modo ACID.",
+      "ACID Pro Native Grid", 0
+    )
+    return false
+  end
+
+  if reaper.GetToggleCommandState(snap_follows_grid_command) ~= 1 then
+    reaper.Main_OnCommand(snap_follows_grid_command, 0)
+    changed_snap_follows_grid = true
+  end
+  return true
+end
 
 local function project_state_key()
   local project = reaper.EnumProjects(-1, "")
@@ -310,6 +362,24 @@ local function cleanup()
   end
   wheel_intercepted = false
 
+  if changed_snap_follows_grid and snap_follows_grid_command ~= 0 and
+      reaper.GetToggleCommandState(snap_follows_grid_command) == 1 then
+    reaper.Main_OnCommand(snap_follows_grid_command, 0)
+  end
+  changed_snap_follows_grid = false
+
+  if changed_grid_spacing and original_grid_spacing then
+    local current_spacing = reaper.SNM_GetIntConfigVar(
+      "projgridmin", ACID_MIN_GRID_SPACING_PX
+    )
+    if current_spacing == ACID_MIN_GRID_SPACING_PX then
+      reaper.SNM_SetIntConfigVar(
+        "projgridmin", original_grid_spacing
+      )
+    end
+  end
+  changed_grid_spacing = false
+
   local state = reaper.GetExtState(
     SERVICE_EXT_SECTION, SERVICE_RUNNING_KEY
   )
@@ -329,6 +399,8 @@ local function cleanup()
 end
 
 reaper.atexit(cleanup)
+
+if not enable_exact_native_grid_options() then return end
 
 trackview_hwnd = reaper.JS_Window_FindChildByID(
   reaper.GetMainHwnd(), 1000
